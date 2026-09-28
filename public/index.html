@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <style>
 :root{
   --ink:#231a3d;
@@ -223,6 +224,7 @@ textarea{width:100%;min-height:110px;font-size:15px;resize:vertical;position:rel
       <button class="btn" id="auth-login-btn" type="button">Войти</button>
     </div>
     <p class="hint">Логин латиницей, 3–32 символа. Пароль восстановить нельзя — если забудете, доступ к сохранённым словам потеряется.</p>
+    <div class="cf-turnstile" id="turnstile-widget" data-sitekey="0x4AAAAAAFHNQq-09C4_A4R2" style="margin:6px 0"></div>
     <div class="tools">
       <button class="btn ghost small" id="auth-register-btn" type="button">Зарегистрироваться</button>
       <button class="btn ghost small" id="auth-cancel-btn" type="button">Отмена</button>
@@ -431,11 +433,21 @@ $('auth-login-btn').addEventListener('click', async ()=>{
   try{ const d=await authRequest('/api/login',{username,password}); await afterAuth(d); toast('Добро пожаловать, '+d.username); }
   catch(e){ $('auth-msg').textContent=e.message; }
 });
+function getTurnstileToken(){
+  const el=document.querySelector('#turnstile-widget input[name="cf-turnstile-response"]');
+  return el ? el.value : '';
+}
+function resetTurnstile(){
+  try{ if(window.turnstile) turnstile.reset('#turnstile-widget'); }catch(e){}
+}
 $('auth-register-btn').addEventListener('click', async ()=>{
   const username=$('auth-username').value.trim(), password=$('auth-password').value;
   if(!username||!password){ $('auth-msg').textContent='Заполни оба поля'; return; }
-  try{ const d=await authRequest('/api/register',{username,password}); await afterAuth(d); toast('Аккаунт создан'); }
+  const turnstileToken=getTurnstileToken();
+  if(!turnstileToken){ $('auth-msg').textContent='Подождите, пока загрузится проверка "я не робот"'; return; }
+  try{ const d=await authRequest('/api/register',{username,password,turnstileToken}); await afterAuth(d); toast('Аккаунт создан'); }
   catch(e){ $('auth-msg').textContent=e.message; }
+  finally{ resetTurnstile(); }
 });
 $('logout-btn').addEventListener('click',()=>{
   authToken=null; authUser=null;

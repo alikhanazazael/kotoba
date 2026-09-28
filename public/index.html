@@ -224,9 +224,9 @@ textarea{width:100%;min-height:110px;font-size:15px;resize:vertical;position:rel
       <button class="btn" id="auth-login-btn" type="button">Войти</button>
     </div>
     <p class="hint">Логин латиницей, 3–32 символа. Пароль восстановить нельзя — если забудете, доступ к сохранённым словам потеряется.</p>
-    <div class="cf-turnstile" id="turnstile-widget" data-sitekey="0x4AAAAAAFHNQq-09C4_A4R2" style="margin:6px 0"></div>
+    <div class="cf-turnstile" id="turnstile-widget" data-sitekey="0x4AAAAAAFHNQq-09C4_A4R2" data-callback="onTurnstileSuccess" data-expired-callback="onTurnstileExpired" data-error-callback="onTurnstileExpired" style="margin:6px 0"></div>
     <div class="tools">
-      <button class="btn ghost small" id="auth-register-btn" type="button">Зарегистрироваться</button>
+      <button class="btn ghost small" id="auth-register-btn" type="button" disabled>Зарегистрироваться</button>
       <button class="btn ghost small" id="auth-cancel-btn" type="button">Отмена</button>
     </div>
     <p class="hint" id="auth-msg" role="alert"></p>
@@ -438,8 +438,11 @@ function getTurnstileToken(){
   return el ? el.value : '';
 }
 function resetTurnstile(){
+  $('auth-register-btn').disabled=true;
   try{ if(window.turnstile) turnstile.reset('#turnstile-widget'); }catch(e){}
 }
+window.onTurnstileSuccess=function(){ $('auth-register-btn').disabled=false; };
+window.onTurnstileExpired=function(){ $('auth-register-btn').disabled=true; };
 $('auth-register-btn').addEventListener('click', async ()=>{
   const username=$('auth-username').value.trim(), password=$('auth-password').value;
   if(!username||!password){ $('auth-msg').textContent='Заполни оба поля'; return; }

@@ -110,7 +110,8 @@ async function bumpRateLimit(env, bucket, ip) {
 }
 
 async function verifyTurnstile(token, secret, ip) {
-  if (!token || !secret) return false;
+  if (!token) { console.log('turnstile: no token from client'); return false; }
+  if (!secret) { console.log('turnstile: TURNSTILE_SECRET is not set in env'); return false; }
   const body = new URLSearchParams();
   body.append('secret', secret);
   body.append('response', token);
@@ -118,8 +119,10 @@ async function verifyTurnstile(token, secret, ip) {
   try {
     const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body });
     const data = await resp.json();
+    if (!data.success) console.log('turnstile siteverify failed:', JSON.stringify(data));
     return data.success === true;
-  } catch {
+  } catch (e) {
+    console.log('turnstile siteverify error:', e.message);
     return false;
   }
 }

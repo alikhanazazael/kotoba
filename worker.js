@@ -73,11 +73,16 @@ const RATE_LIMITS = {
 
 const ACCOUNT_TTL_SEC = 60 * 60 * 24 * 30; // аккаунт и словарь удаляются, если не открывали 30 дней
 
+// Продлеваем TTL не чаще раза в сутки на пользователя — иначе каждый GET /api/words
+// (открытие страницы) тратит запись в KV и быстро съедает дневной лимит (1000/сутки на free-плане)
 async function touchAccount(env, username) {
+  const marker = 'touched:' + username;
+  const alreadyTouchedToday = await env.KOTOBA_KV.get(marker);
+  if (alreadyTouchedToday) return;
   const userKey = 'user:' + username;
   const wordsKey = 'words:' + username;
   const [userRaw, wordsRaw] = await Promise.all([env.KOTOBA_KV.get(userKey), env.KOTOBA_KV.get(wordsKey)]);
-  const puts = [];
+  const puts = [env.KOTOBA_KV.put(marker, '1', { expirationTtl: 60 * 60 * 24 })];
   if (userRaw) puts.push(env.KOTOBA_KV.put(userKey, userRaw, { expirationTtl: ACCOUNT_TTL_SEC }));
   if (wordsRaw) puts.push(env.KOTOBA_KV.put(wordsKey, wordsRaw, { expirationTtl: ACCOUNT_TTL_SEC }));
   await Promise.all(puts);
@@ -129,6 +134,19 @@ async function verifyTurnstile(token, secret, ip) {
 
 export default {
   async fetch(request, env) {
+    try {
+      return await handle(request, env);
+    } catch (e) {
+      console.log('unhandled error:', e && e.message);
+      if (new URL(request.url).pathname.startsWith('/api/')) {
+        return json({ error: 'Сервис временно недоступен, попробуйте чуть позже' }, 503);
+      }
+      throw e;
+    }
+  }
+};
+
+async function handle(request, env) {
     const url = new URL(request.url);
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
 
@@ -194,5 +212,4 @@ export default {
     }
 
     return env.ASSETS.fetch(request);
-  }
-};
+}

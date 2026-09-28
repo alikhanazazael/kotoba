@@ -66,11 +66,32 @@ function validUsername(u) {
   return typeof u === 'string' && /^[a-zA-Z0-9_-]{3,32}$/.test(u);
 }
 
+const RATE_LIMITS = {
+  register: { max: 5, windowSec: 86400 },  // 5 новых аккаунтов в сутки с одного IP
+  login: { max: 20, windowSec: 3600 }      // 20 попыток входа в час с одного IP
+};
+
+async function checkRateLimit(env, bucket, ip) {
+  const cfg = RATE_LIMITS[bucket];
+  const key = `ratelimit:${bucket}:${ip}`;
+  const raw = await env.KOTOBA_KV.get(key);
+  const count = raw ? parseInt(raw, 10) : 0;
+  if (count >= cfg.max) return false;
+  await env.KOTOBA_KV.put(key, String(count + 1), { expirationTtl: cfg.windowSec });
+  return true;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const ip = request.headers.get('cf-connecting-ip') || 'unknown';
 
     if (url.pathname === '/api/register' && request.method === 'POST') {
+      return json({ error: 'Регистрация временно приостановлена (защита от спама), попробуйте позже' }, 503);
+      // eslint-disable-next-line no-unreachable
+      if (!(await checkRateLimit(env, 'register', ip))) {
+        return json({ error: 'Слишком много регистраций с этого адреса, попробуйте завтра' }, 429);
+      }
       const body = await request.json().catch(() => null);
       if (!body || !validUsername(body.username) || typeof body.password !== 'string' || body.password.length < 6) {
         return json({ error: 'Логин: 3-32 латинских символа/цифры, пароль минимум 6 символов' }, 400);
@@ -86,6 +107,9 @@ export default {
     }
 
     if (url.pathname === '/api/login' && request.method === 'POST') {
+      if (!(await checkRateLimit(env, 'login', ip))) {
+        return json({ error: 'Слишком много попыток входа, попробуйте позже' }, 429);
+      }
       const body = await request.json().catch(() => null);
       if (!body || !validUsername(body.username) || typeof body.password !== 'string') {
         return json({ error: 'Неверный логин или пароль' }, 400);

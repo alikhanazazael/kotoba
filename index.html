@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kotoba — тренажёр слов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#231a3d;
+  --paper:#fff9fb;
+  --sakura:#ffb3c7;
+  --sakura-deep:#ff7fa3;
+  --dusk:#6c4fb3;
+  --mint:#45c99a;
+  --bad:#ff4f6d;
+  --sky1:#2b1f55;
+  --sky2:#7a4fa8;
+  --sky3:#ff9fbc;
+  --display:"Dela Gothic One","Arial Black",system-ui,sans-serif;
+  --body:"M PLUS Rounded 1c","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:var(--body);
+  color:var(--ink);
+  background:linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 55%,var(--sky3) 100%) fixed;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* stars */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 28% 8%,#fff 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 67% 14%,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 82% 26%,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 45% 30%,#fff 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 92% 6%,#fff 50%,transparent 51%);
+  opacity:.8;
+}
+.petal{
+  position:fixed;top:-40px;width:14px;height:11px;pointer-events:none;z-index:0;
+  background:var(--sakura);border-radius:14px 0 14px 0;opacity:.85;
+  animation:fall linear infinite;
+}
+@keyframes fall{
+  0%{transform:translate(0,0) rotate(0)}
+  100%{transform:translate(120px,110vh) rotate(540deg)}
+}
+@media (prefers-reduced-motion:reduce){.petal{display:none}}
+
+.wrap{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:28px 18px 60px}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:26px}
+.logo{color:#fff;line-height:1}
+.logo h1{
+  font-family:var(--display);font-weight:400;margin:0;font-size:clamp(40px,8vw,64px);
+  letter-spacing:.01em;
+  text-shadow:3px 3px 0 var(--sakura-deep),6px 6px 0 var(--ink);
+}
+.logo .jp{font-family:var(--display);font-size:18px;color:var(--sakura);margin-top:10px;display:block}
+
+nav{display:flex;background:var(--ink);border-radius:999px;padding:4px;gap:4px}
+nav button{
+  font:700 15px var(--body);border:0;background:transparent;color:#d9cff5;
+  padding:10px 18px;border-radius:999px;cursor:pointer;
+}
+nav button[aria-selected="true"]{background:var(--sakura);color:var(--ink)}
+nav button:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #ffe066;outline-offset:2px}
+
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.chip{
+  background:rgba(255,255,255,.14);color:#fff;border:1.5px solid rgba(255,255,255,.35);
+  border-radius:999px;padding:6px 14px;font-size:14px;font-weight:500
+}
+.chip b{font-weight:800}
+
+/* manga panel */
+.panel{
+  position:relative;background:var(--paper);border:3px solid var(--ink);
+  border-radius:8px;box-shadow:8px 8px 0 var(--ink);padding:30px 28px;overflow:hidden
+}
+.panel.halftone::before{
+  content:"";position:absolute;right:-20px;top:-20px;width:240px;height:240px;pointer-events:none;
+  background-image:radial-gradient(var(--sakura) 28%,transparent 30%);
+  background-size:12px 12px;
+  -webkit-mask-image:radial-gradient(circle at top right,#000 0%,transparent 70%);
+          mask-image:radial-gradient(circle at top right,#000 0%,transparent 70%);
+}
+
+.trainer{display:grid;gap:18px}
+.mascot{display:flex;align-items:center;gap:14px;color:#fff;flex-wrap:wrap}
+.face{
+  flex:none;width:92px;height:92px;border-radius:50%;background:var(--paper);color:var(--ink);
+  border:3px solid var(--ink);display:grid;place-items:center;font-size:17px;font-weight:800;
+  box-shadow:4px 4px 0 var(--ink);white-space:nowrap
+}
+.bubble{
+  position:relative;background:var(--paper);color:var(--ink);border:3px solid var(--ink);
+  border-radius:20px;padding:12px 18px;font-weight:700;font-size:16px;max-width:100%;flex:1 1 180px
+}
+.bubble::before{
+  content:"";position:absolute;left:-14px;top:50%;margin-top:-9px;
+  border:9px solid transparent;border-right:12px solid var(--ink);border-left:0
+}
+
+.prompt-label{font-size:14px;color:#6d6390;margin:0 0 6px;position:relative}
+.word{
+  font-family:var(--display);font-weight:400;font-size:clamp(34px,7vw,56px);line-height:1.1;
+  margin:0 0 22px;word-break:break-word;position:relative
+}
+.answer-row{display:flex;gap:10px;flex-wrap:wrap;position:relative}
+input[type=text],textarea{
+  font:500 20px var(--body);color:var(--ink);background:#fff;
+  border:3px solid var(--ink);border-radius:12px;padding:12px 16px;min-width:0
+}
+.answer-row input{flex:1 1 220px}
+input.ok{border-color:var(--mint);background:#eafaf3}
+input.no{border-color:var(--bad);background:#fff0f3}
+
+.btn{
+  font:800 16px var(--body);border:3px solid var(--ink);border-radius:12px;cursor:pointer;
+  padding:12px 20px;background:var(--sakura);color:var(--ink);box-shadow:4px 4px 0 var(--ink);
+  transition:transform .08s,box-shadow .08s
+}
+.btn:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
+.btn.ghost{background:#fff}
+.btn.small{padding:8px 14px;font-size:14px;box-shadow:3px 3px 0 var(--ink)}
+.btn.dusk{background:var(--dusk);color:#fff}
+.tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;position:relative}
+
+.feedback{min-height:28px;margin-top:16px;font-weight:700;font-size:17px;position:relative}
+.feedback .right{color:#1c8f68}
+.feedback .wrong{color:var(--bad)}
+.feedback .ans{background:#ffe066;padding:1px 8px;border-radius:6px;color:var(--ink)}
+
+.level{display:inline-flex;gap:3px;vertical-align:middle}
+.level i{width:10px;height:10px;border-radius:50%;border:2px solid var(--ink);background:#fff}
+.level i.on{background:var(--sakura-deep)}
+.meta{margin-top:18px;font-size:14px;color:#6d6390;position:relative;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.03)}100%{transform:scale(1)}}
+.shake{animation:shake .4s}
+.pop{animation:pop .3s}
+@media (prefers-reduced-motion:reduce){.shake,.pop{animation:none}}
+
+.empty{text-align:center;padding:20px 0}
+.empty p{font-size:17px;margin:10px 0 18px}
+
+/* dictionary */
+.dict{display:grid;gap:22px}
+.panel h2{font-family:var(--display);font-weight:400;font-size:26px;margin:0 0 16px;position:relative}
+.add-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;position:relative}
+.add-grid input{font-size:17px;width:100%}
+@media (max-width:600px){.add-grid{grid-template-columns:1fr}}
+textarea{width:100%;min-height:110px;font-size:15px;resize:vertical;position:relative}
+.hint{font-size:14px;color:#6d6390;margin:8px 0 12px;position:relative}
+.search{width:100%;font-size:16px;margin-bottom:14px}
+
+.list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.list li{
+  display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;
+  border:2px solid var(--ink);border-radius:10px;padding:10px 12px;background:#fff
+}
+.pair{min-width:0}
+.pair .en{font-weight:800;font-size:17px;word-break:break-word}
+.pair .ru{color:#6d6390;font-size:15px;word-break:break-word}
+.score{font-size:13px;color:#6d6390;text-align:right;white-space:nowrap}
+.del{
+  width:36px;height:36px;border-radius:50%;border:2px solid var(--ink);background:#fff;
+  font:800 16px var(--body);cursor:pointer;color:var(--ink)
+}
+.del:hover{background:var(--bad);color:#fff}
+@media (max-width:480px){.list li{grid-template-columns:1fr auto}.score{grid-column:1;text-align:left}}
+
+.toast{
+  position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);opacity:0;
+  background:var(--ink);color:#fff;padding:12px 20px;border-radius:999px;font-weight:700;
+  transition:.25s;z-index:10;pointer-events:none
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <h1>Kotoba</h1>
+      <span class="jp">言葉の練習</span>
+    </div>
+    <nav role="tablist">
+      <button role="tab" id="tab-train" aria-selected="true">Тренировка</button>
+      <button role="tab" id="tab-dict" aria-selected="false">Словарь</button>
+    </nav>
+  </header>
+
+  <!-- TRAINING -->
+  <section id="page-train" class="trainer">
+    <div class="stats">
+      <span class="chip">Серия <b id="s-streak">0</b></span>
+      <span class="chip">Точность <b id="s-acc">—</b></span>
+      <span class="chip">Выучено <b id="s-learned">0</b> из <b id="s-total">0</b></span>
+    </div>
+
+    <div class="mascot">
+      <div class="face" id="face">(・ω・)</div>
+      <div class="bubble" id="bubble">Как это по-английски?</div>
+    </div>
+
+    <div class="panel halftone" id="card">
+      <div id="quiz">
+        <p class="prompt-label">Переведи на английский</p>
+        <p class="word" id="word"></p>
+        <div class="answer-row" id="answer-form">
+          <label class="sr" for="answer">Ответ</label>
+          <input type="text" id="answer" placeholder="Пиши здесь…" spellcheck="false" autocapitalize="off">
+          <button class="btn" type="button" id="submit-btn">Проверить</button>
+        </div>
+        <div class="tools">
+          <button class="btn ghost small" id="hint-btn" type="button">Подсказка</button>
+          <button class="btn ghost small" id="skip-btn" type="button">Не знаю</button>
+        </div>
+        <div class="feedback" id="feedback" aria-live="polite"></div>
+        <div class="meta" id="meta"></div>
+      </div>
+      <div class="empty" id="empty" hidden>
+        <div class="face" style="margin:0 auto">(´・ω・`)</div>
+        <p>В словаре пока нет слов. Добавь несколько, и начнём.</p>
+        <button class="btn" id="go-dict" type="button">Открыть словарь</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DICTIONARY -->
+  <section id="page-dict" class="dict" hidden>
+    <div class="panel halftone">
+      <h2>Новое слово</h2>
+      <div class="add-grid" id="add-form">
+        <input type="text" id="add-ru" placeholder="По-русски" aria-label="Слово на русском">
+        <input type="text" id="add-en" placeholder="По-английски" aria-label="Слово на английском">
+        <button class="btn" type="button" id="add-btn">Добавить</button>
+      </div>
+      <p class="hint">Несколько вариантов перевода пиши через «/», например: <b>big / large</b>. Засчитается любой.</p>
+
+      <h2 style="margin-top:22px">Добавить списком</h2>
+      <p class="hint">Одна пара на строку: <b>apple - яблоко</b>. Порядок не важен, язык определится сам.</p>
+      <textarea id="bulk" placeholder="apple - яблоко&#10;to run - бегать&#10;cloud - облако"></textarea>
+      <div class="tools"><button class="btn" id="bulk-btn" type="button">Добавить все</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>Мои слова <span id="dict-count" style="color:#6d6390"></span></h2>
+      <input type="text" class="search" id="search" placeholder="Поиск…" aria-label="Поиск по словарю">
+      <ul class="list" id="list"></ul>
+      <div class="tools" style="margin-top:20px">
+        <button class="btn ghost small" id="export-btn" type="button">Скачать копию</button>
+        <button class="btn ghost small" id="import-btn" type="button">Загрузить копию</button>
+        <button class="btn ghost small" id="reset-btn" type="button">Сбросить прогресс</button>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+const KEY = 'kotoba-words-v1';
+const MAX_LEVEL = 5;
+
+const SEED = [
+  ['яблоко','apple'],['облако','cloud'],['бегать','run / to run'],
+  ['сильный','strong'],['дружба','friendship'],['мечта','dream']
+];
+
+/* ---------- storage ---------- */
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const d = JSON.parse(raw); if(Array.isArray(d.words)) return d; }
+  }catch(e){}
+  return null;
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function makeWord(ru,en){ return {id:uid(), ru:ru.trim(), en:en.trim(), level:0, correct:0, wrong:0, added:Date.now()}; }
+
+let state = load() || {words: SEED.map(p=>makeWord(p[0],p[1]))};
+save();
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+function norm(s){
+  return s.toLowerCase().replace(/ё/g,'е')
+    .replace(/[.!?"'`’«»]/g,'')
+    .replace(/\s+/g,' ').trim()
+    .replace(/^(to|a|an|the) /,'');
+}
+function variants(s){ return s.split(/[\/,;]/).map(norm).filter(Boolean); }
+function lev(a,b){
+  const m=a.length,n=b.length; if(!m) return n; if(!n) return m;
+  let prev=Array.from({length:n+1},(_,i)=>i);
+  for(let i=1;i<=m;i++){
+    const cur=[i];
+    for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    prev=cur;
+  }
+  return prev[n];
+}
+const hasCyr = s => /[а-яё]/i.test(s);
+function levelDots(l){
+  const wrap=document.createElement('span'); wrap.className='level'; wrap.title='Уровень '+l+' из '+MAX_LEVEL;
+  for(let i=0;i<MAX_LEVEL;i++){ const d=document.createElement('i'); if(i<l) d.className='on'; wrap.appendChild(d); }
+  return wrap;
+}
+let toastT;
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2000);
+}
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+/* ---------- weighted choice ---------- */
+// уровень 0 → вес 32, уровень 5 → вес ~1; частые ошибки ещё поднимают вес
+function weight(w){
+  const errRate = (w.wrong+1)/(w.correct+w.wrong+2);
+  return Math.pow(2, MAX_LEVEL - w.level) * (0.5 + errRate);
+}
+let current=null, lastId=null;
+function nextWord(){
+  const pool = state.words.length>1 ? state.words.filter(w=>w.id!==lastId) : state.words;
+  if(!pool.length) return null;
+  const total = pool.reduce((s,w)=>s+weight(w),0);
+  let r = Math.random()*total;
+  for(const w of pool){ r-=weight(w); if(r<=0) return w; }
+  return pool[pool.length-1];
+}
+
+/* ---------- training ---------- */
+let phase='ask', hintUsed=false, session={right:0,total:0,streak:0};
+const FACE = {
+  ask:['(・ω・)','(｡•̀ᴗ-)','(=^・ω・^=)'],
+  ok:['(≧▽≦)','(＾▽＾)','٩(◕‿◕)۶'],
+  fire:['(ﾉ◕ヮ◕)ﾉ✧','☆*:.｡(≧▽≦)'],
+  bad:['(╥﹏╥)','(>_<)','(ノ_<)'],
+  almost:['(・_・;)','(°ー°〃)']
+};
+const PRAISE=['Сугой! Верно!','Идеально!','Так держать!','Отлично, семпай!','Именно так!'];
+
+function setMascot(kind,text){ $('face').textContent=pick(FACE[kind]); $('bubble').textContent=text; }
+
+function updateStats(){
+  $('s-streak').textContent=session.streak;
+  $('s-acc').textContent = session.total ? Math.round(session.right/session.total*100)+'%' : '—';
+  $('s-learned').textContent = state.words.filter(w=>w.level>=4).length;
+  $('s-total').textContent = state.words.length;
+}
+
+function ask(){
+  const has = state.words.length>0;
+  $('quiz').hidden=!has; $('empty').hidden=has;
+  updateStats();
+  if(!has){ current=null; setMascot('ask','Сначала добавь слова'); return; }
+  current = nextWord(); lastId=current.id;
+  phase='ask'; hintUsed=false;
+  $('word').textContent=current.ru;
+  const inp=$('answer'); inp.value=''; inp.className=''; inp.disabled=false;
+  $('submit-btn').textContent='Проверить';
+  $('hint-btn').disabled=false; $('skip-btn').disabled=false;
+  $('feedback').innerHTML='';
+  renderMeta();
+  setMascot('ask','Как это по-английски?');
+  if(!$('page-train').hidden) inp.focus();
+}
+
+function renderMeta(){
+  const m=$('meta'); m.innerHTML='';
+  m.appendChild(levelDots(current.level));
+  const s=document.createElement('span');
+  s.textContent = current.correct+current.wrong ? `верно ${current.correct}, ошибок ${current.wrong}` : 'новое слово';
+  m.appendChild(s);
+}
+
+function showResult(kind, given){
+  const fb=$('feedback'); fb.innerHTML='';
+  const card=$('card'); card.classList.remove('shake','pop'); void card.offsetWidth;
+  const inp=$('answer');
+  if(kind==='ok'){
+    inp.className='ok'; card.classList.add('pop');
+    const sp=document.createElement('span'); sp.className='right';
+    sp.textContent = hintUsed ? 'Верно, но с подсказкой. Уровень не растёт.' : 'Верно!';
+    fb.appendChild(sp);
+    if(session.streak>=5 && session.streak%5===0) setMascot('fire','Серия '+session.streak+'! Ты в ударе!');
+    else setMascot('ok',pick(PRAISE));
+  }else{
+    inp.className='no'; card.classList.add('shake');
+    const sp=document.createElement('span'); sp.className='wrong';
+    sp.textContent = (kind==='almost' ? 'Почти, одна буква не та. ' : given ? 'Неверно. ' : '') + 'Правильно: ';
+    const a=document.createElement('span'); a.className='ans'; a.textContent=current.en;
+    fb.appendChild(sp); fb.appendChild(a);
+    setMascot(kind==='almost'?'almost':'bad', kind==='almost'?'Ещё чуть-чуть!':'Ничего, это слово будет чаще');
+  }
+  phase='result';
+  inp.disabled=true;
+  $('submit-btn').textContent='Дальше';
+  $('hint-btn').disabled=true; $('skip-btn').disabled=true;
+  renderMeta(); updateStats(); save();
+  $('submit-btn').focus();
+}
+
+function check(given){
+  const g=norm(given);
+  const vars=variants(current.en);
+  session.total++;
+  if(vars.includes(g)){
+    current.correct++;
+    if(!hintUsed) current.level=Math.min(MAX_LEVEL,current.level+1);
+    session.right++; session.streak++;
+    showResult('ok');
+  }else{
+    const almost = g.length>=4 && vars.some(v=>lev(v,g)===1);
+    current.wrong++;
+    current.level=Math.max(0,current.level-(almost?1:2));
+    session.streak=0;
+    showResult(almost?'almost':'bad', given);
+  }
+}
+
+function submitAnswer(){
+  if(!current) return;
+  if(phase==='result'){ ask(); return; }
+  const v=$('answer').value;
+  if(!v.trim()){ $('answer').focus(); return; }
+  check(v);
+}
+$('submit-btn').addEventListener('click',submitAnswer);
+$('answer').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); submitAnswer(); } });
+$('skip-btn').addEventListener('click',()=>{ if(current&&phase==='ask') check(''); });
+$('hint-btn').addEventListener('click',()=>{
+  if(!current||phase!=='ask') return;
+  hintUsed=true;
+  const first=current.en.split('/')[0].trim();
+  const h = first.split(' ').map(p=>p[0]+'·'.repeat(Math.max(0,p.length-1))).join(' ');
+  setMascot('ask','Начинается так: '+h);
+  $('answer').focus();
+});
+// Enter на кнопке «Дальше»
+$('submit-btn').addEventListener('keydown',e=>{ if(e.key==='Enter'&&phase==='result'){e.preventDefault(); ask();} });
+
+/* ---------- tabs ---------- */
+function showTab(name){
+  const train=name==='train';
+  $('page-train').hidden=!train; $('page-dict').hidden=train;
+  $('tab-train').setAttribute('aria-selected',train);
+  $('tab-dict').setAttribute('aria-selected',!train);
+  if(train){ if(!current || !state.words.find(w=>w.id===current.id)) ask(); else if(phase==='ask') $('answer').focus(); updateStats(); }
+  else { renderList(); $('add-ru').focus(); }
+}
+$('tab-train').onclick=()=>showTab('train');
+$('tab-dict').onclick=()=>showTab('dict');
+$('go-dict').onclick=()=>showTab('dict');
+
+/* ---------- dictionary ---------- */
+function exists(ru,en){ return state.words.some(w=>norm(w.ru)===norm(ru)&&norm(w.en)===norm(en)); }
+function addWord(ru,en){
+  ru=ru.trim(); en=en.trim();
+  if(!ru||!en) return false;
+  if(exists(ru,en)) return false;
+  state.words.unshift(makeWord(ru,en)); return true;
+}
+
+function addFromForm(){
+  const ru=$('add-ru').value, en=$('add-en').value;
+  if(!ru.trim()||!en.trim()){ toast('Заполни оба поля'); return; }
+  if(addWord(ru,en)){ save(); renderList(); toast('Добавлено: '+en.trim()); $('add-ru').value=''; $('add-en').value=''; }
+  else toast('Такое слово уже есть');
+  $('add-ru').focus();
+}
+$('add-btn').addEventListener('click',addFromForm);
+['add-ru','add-en'].forEach(id=>$(id).addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addFromForm(); } }));
+
+$('bulk-btn').addEventListener('click',()=>{
+  const lines=$('bulk').value.split('\n');
+  let added=0, bad=0;
+  for(const line of lines){
+    if(!line.trim()) continue;
+    const parts=line.split(/\s+[-–—=]\s+|\t|\s*[–—=]\s*/);
+    if(parts.length<2){ bad++; continue; }
+    let a=parts[0], b=parts.slice(1).join(' ');
+    let ru,en;
+    if(hasCyr(a)&&!hasCyr(b)){ ru=a; en=b; } else { en=a; ru=b; }
+    if(addWord(ru,en)) added++;
+  }
+  save(); renderList();
+  $('bulk').value='';
+  toast(`Добавлено слов: ${added}` + (bad?`, не понял строк: ${bad}`:''));
+});
+
+$('search').addEventListener('input',renderList);
+
+function renderList(){
+  const q=norm($('search').value||'');
+  const list=$('list'); list.innerHTML='';
+  $('dict-count').textContent='('+state.words.length+')';
+  const items=state.words.filter(w=>!q||norm(w.ru).includes(q)||norm(w.en).includes(q));
+  if(!items.length){
+    const li=document.createElement('li'); li.style.gridTemplateColumns='1fr';
+    li.textContent = state.words.length ? 'Ничего не нашлось' : 'Словарь пуст. Добавь слова выше.';
+    list.appendChild(li); return;
+  }
+  for(const w of items){
+    const li=document.createElement('li');
+    const pair=document.createElement('div'); pair.className='pair';
+    const en=document.createElement('div'); en.className='en'; en.textContent=w.en;
+    const ru=document.createElement('div'); ru.className='ru'; ru.textContent=w.ru;
+    pair.append(en,ru);
+    const score=document.createElement('div'); score.className='score';
+    score.appendChild(levelDots(w.level));
+    const t=document.createElement('div'); t.textContent=`✓ ${w.correct}   ✗ ${w.wrong}`;
+    score.appendChild(t);
+    const del=document.createElement('button'); del.className='del'; del.textContent='✕';
+    del.setAttribute('aria-label','Удалить '+w.en);
+    del.onclick=()=>{
+      state.words=state.words.filter(x=>x.id!==w.id);
+      if(current&&current.id===w.id) current=null;
+      save(); renderList(); toast('Удалено: '+w.en);
+    };
+    li.append(pair,score,del);
+    list.appendChild(li);
+  }
+}
+
+$('export-btn').onclick=()=>{
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='kotoba-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+$('import-btn').onclick=()=>$('import-file').click();
+$('import-file').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      const arr=Array.isArray(d)?d:d.words;
+      if(!Array.isArray(arr)) throw 0;
+      let added=0;
+      for(const w of arr){
+        if(!w||!w.ru||!w.en||exists(w.ru,w.en)) continue;
+        state.words.push({id:uid(),ru:String(w.ru),en:String(w.en),
+          level:Math.min(MAX_LEVEL,Math.max(0,w.level|0)),correct:w.correct|0,wrong:w.wrong|0,added:w.added||Date.now()});
+        added++;
+      }
+      save(); renderList(); toast('Загружено слов: '+added);
+    }catch(err){ toast('Не удалось прочитать файл'); }
+    e.target.value='';
+  };
+  r.readAsText(f);
+};
+$('reset-btn').onclick=()=>{
+  if(!confirm('Сбросить уровни и счётчики у всех слов? Сами слова останутся.')) return;
+  state.words.forEach(w=>{w.level=0;w.correct=0;w.wrong=0;});
+  save(); renderList(); toast('Прогресс сброшен');
+};
+
+/* ---------- petals ---------- */
+if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+  for(let i=0;i<14;i++){
+    const p=document.createElement('span'); p.className='petal';
+    p.style.left=(Math.random()*100-10)+'vw';
+    p.style.animationDuration=(9+Math.random()*10)+'s';
+    p.style.animationDelay=(-Math.random()*18)+'s';
+    const s=.6+Math.random()*.8; p.style.width=14*s+'px'; p.style.height=11*s+'px';
+    document.body.appendChild(p);
+  }
+}
+
+ask();
+})();
+</script>
+</body>
+</html>

@@ -1,7 +1,12 @@
 {
   "name": "kotoba",
   "compatibility_date": "2025-09-28",
+  "main": "worker.js",
   "assets": {
-    "directory": "."
-  }
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    { "binding": "KOTOBA_KV", "id": "PUT_KV_NAMESPACE_ID_HERE" }
+  ]
 }

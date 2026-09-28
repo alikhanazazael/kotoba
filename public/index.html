@@ -73,6 +73,12 @@ nav button{
 nav button[aria-selected="true"]{background:var(--sakura);color:var(--ink)}
 nav button:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #ffe066;outline-offset:2px}
 
+.authbar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  color:#fff;font-size:13px;margin-bottom:14px;opacity:.9
+}
+.authbar span{flex:1 1 auto;min-width:0}
+
 .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
 .chip{
   background:rgba(255,255,255,.14);color:#fff;border:1.5px solid rgba(255,255,255,.35);
@@ -115,7 +121,7 @@ nav button:focus-visible,button:focus-visible,input:focus-visible,textarea:focus
   margin:0 0 22px;word-break:break-word;position:relative
 }
 .answer-row{display:flex;gap:10px;flex-wrap:wrap;position:relative}
-input[type=text],textarea{
+input[type=text],input[type=password],textarea{
   font:500 20px var(--body);color:var(--ink);background:#fff;
   border:3px solid var(--ink);border-radius:12px;padding:12px 16px;min-width:0
 }
@@ -202,6 +208,27 @@ textarea{width:100%;min-height:110px;font-size:15px;resize:vertical;position:rel
       <button role="tab" id="tab-dict" aria-selected="false">Словарь</button>
     </nav>
   </header>
+
+  <div class="authbar">
+    <span id="auth-status">Слова сохраняются только в этом браузере</span>
+    <button class="btn ghost small" id="auth-open-btn" type="button">Войти / Зарегистрироваться</button>
+    <button class="btn ghost small" id="logout-btn" type="button" hidden>Выйти (<span id="auth-user"></span>)</button>
+  </div>
+
+  <div class="panel" id="auth-panel" hidden style="margin-bottom:18px">
+    <h2>Аккаунт</h2>
+    <div class="add-grid">
+      <input type="text" id="auth-username" placeholder="Логин (лат. буквы/цифры)" autocomplete="username">
+      <input type="password" id="auth-password" placeholder="Пароль (от 6 символов)" autocomplete="current-password">
+      <button class="btn" id="auth-login-btn" type="button">Войти</button>
+    </div>
+    <p class="hint">Логин латиницей, 3–32 символа. Пароль восстановить нельзя — если забудете, доступ к сохранённым словам потеряется.</p>
+    <div class="tools">
+      <button class="btn ghost small" id="auth-register-btn" type="button">Зарегистрироваться</button>
+      <button class="btn ghost small" id="auth-cancel-btn" type="button">Отмена</button>
+    </div>
+    <p class="hint" id="auth-msg" role="alert"></p>
+  </div>
 
   <!-- TRAINING -->
   <section id="page-train" class="trainer">
@@ -293,6 +320,7 @@ function load(){
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+  scheduleSync();
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function makeWord(ru,en){ return {id:uid(), ru:ru.trim(), en:en.trim(), level:0, correct:0, wrong:0, added:Date.now()}; }
@@ -331,6 +359,89 @@ function toast(msg){
   clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2000);
 }
 const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+/* ---------- account sync ---------- */
+let authToken=null, authUser=null;
+try{ authToken=localStorage.getItem('kotoba-token'); authUser=localStorage.getItem('kotoba-user'); }catch(e){}
+
+function updateAuthUI(){
+  const status=$('auth-status'), openBtn=$('auth-open-btn'), logoutBtn=$('logout-btn'), userSpan=$('auth-user');
+  if(authToken && authUser){
+    status.textContent='Вошли как '+authUser+' — слова синхронизируются';
+    openBtn.hidden=true; logoutBtn.hidden=false; userSpan.textContent=authUser;
+  }else{
+    status.textContent='Слова сохраняются только в этом браузере';
+    openBtn.hidden=false; logoutBtn.hidden=true;
+  }
+}
+
+let syncTimer=null;
+function scheduleSync(){
+  if(!authToken) return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(syncToServer,800);
+}
+async function syncToServer(){
+  if(!authToken) return;
+  try{
+    await fetch('/api/words',{
+      method:'PUT',
+      headers:{'content-type':'application/json','authorization':'Bearer '+authToken},
+      body:JSON.stringify({words:state.words})
+    });
+  }catch(e){}
+}
+async function pullFromServer(){
+  try{
+    const r=await fetch('/api/words',{headers:{authorization:'Bearer '+authToken}});
+    const d=await r.json().catch(()=>null);
+    if(!r.ok||!d) return;
+    if(Array.isArray(d.words) && d.words.length){
+      state.words=d.words;
+      try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+      renderList(); updateStats();
+      if(!$('page-train').hidden){ if(!current||!state.words.find(w=>w.id===current.id)) ask(); }
+      toast('Слова загружены с сервера');
+    }else{
+      scheduleSync();
+    }
+  }catch(e){ toast('Не удалось связаться с сервером'); }
+}
+
+async function authRequest(path, body){
+  const r=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json().catch(()=>({error:'Ошибка сервера'}));
+  if(!r.ok) throw new Error(d.error||'Ошибка');
+  return d;
+}
+async function afterAuth(d){
+  authToken=d.token; authUser=d.username;
+  try{ localStorage.setItem('kotoba-token',authToken); localStorage.setItem('kotoba-user',authUser); }catch(e){}
+  updateAuthUI();
+  $('auth-panel').hidden=true;
+  $('auth-username').value=''; $('auth-password').value='';
+  await pullFromServer();
+}
+
+$('auth-open-btn').addEventListener('click',()=>{ $('auth-panel').hidden=false; $('auth-msg').textContent=''; $('auth-username').focus(); });
+$('auth-cancel-btn').addEventListener('click',()=>{ $('auth-panel').hidden=true; });
+$('auth-login-btn').addEventListener('click', async ()=>{
+  const username=$('auth-username').value.trim(), password=$('auth-password').value;
+  if(!username||!password){ $('auth-msg').textContent='Заполни оба поля'; return; }
+  try{ const d=await authRequest('/api/login',{username,password}); await afterAuth(d); toast('Добро пожаловать, '+d.username); }
+  catch(e){ $('auth-msg').textContent=e.message; }
+});
+$('auth-register-btn').addEventListener('click', async ()=>{
+  const username=$('auth-username').value.trim(), password=$('auth-password').value;
+  if(!username||!password){ $('auth-msg').textContent='Заполни оба поля'; return; }
+  try{ const d=await authRequest('/api/register',{username,password}); await afterAuth(d); toast('Аккаунт создан'); }
+  catch(e){ $('auth-msg').textContent=e.message; }
+});
+$('logout-btn').addEventListener('click',()=>{
+  authToken=null; authUser=null;
+  try{ localStorage.removeItem('kotoba-token'); localStorage.removeItem('kotoba-user'); }catch(e){}
+  updateAuthUI(); toast('Вы вышли');
+});
 
 /* ---------- weighted choice ---------- */
 // уровень 0 → вес 32, уровень 5 → вес ~1; частые ошибки ещё поднимают вес
@@ -590,6 +701,8 @@ if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
   }
 }
 
+updateAuthUI();
+if(authToken) pullFromServer();
 ask();
 })();
 </script>

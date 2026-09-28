@@ -36,7 +36,7 @@ async function hmac(secret, data) {
 }
 
 async function makeToken(username, secret) {
-  const payload = JSON.stringify({ u: username, exp: Date.now() + 1000 * 60 * 60 * 24 * 30 });
+  const payload = JSON.stringify({ u: username, exp: Date.now() + 1000 * 60 * 60 * 24 * 90 });
   const payloadB64 = b64url(new TextEncoder().encode(payload).buffer);
   const sig = await hmac(secret, payloadB64);
   return payloadB64 + '.' + sig;
@@ -71,6 +71,18 @@ const RATE_LIMITS = {
   login: { max: 20, windowSec: 3600 }      // 20 попыток входа в час с одного IP
 };
 
+const ACCOUNT_TTL_SEC = 60 * 60 * 24 * 30; // аккаунт и словарь удаляются, если не открывали 30 дней
+
+async function touchAccount(env, username) {
+  const userKey = 'user:' + username;
+  const wordsKey = 'words:' + username;
+  const [userRaw, wordsRaw] = await Promise.all([env.KOTOBA_KV.get(userKey), env.KOTOBA_KV.get(wordsKey)]);
+  const puts = [];
+  if (userRaw) puts.push(env.KOTOBA_KV.put(userKey, userRaw, { expirationTtl: ACCOUNT_TTL_SEC }));
+  if (wordsRaw) puts.push(env.KOTOBA_KV.put(wordsKey, wordsRaw, { expirationTtl: ACCOUNT_TTL_SEC }));
+  await Promise.all(puts);
+}
+
 async function checkRateLimit(env, bucket, ip) {
   const cfg = RATE_LIMITS[bucket];
   const key = `ratelimit:${bucket}:${ip}`;
@@ -81,14 +93,27 @@ async function checkRateLimit(env, bucket, ip) {
   return true;
 }
 
+async function verifyTurnstile(token, secret, ip) {
+  if (!token || !secret) return false;
+  const body = new URLSearchParams();
+  body.append('secret', secret);
+  body.append('response', token);
+  if (ip) body.append('remoteip', ip);
+  try {
+    const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body });
+    const data = await resp.json();
+    return data.success === true;
+  } catch {
+    return false;
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
 
     if (url.pathname === '/api/register' && request.method === 'POST') {
-      return json({ error: 'Регистрация временно приостановлена (защита от спама), попробуйте позже' }, 503);
-      // eslint-disable-next-line no-unreachable
       if (!(await checkRateLimit(env, 'register', ip))) {
         return json({ error: 'Слишком много регистраций с этого адреса, попробуйте завтра' }, 429);
       }
@@ -96,12 +121,15 @@ export default {
       if (!body || !validUsername(body.username) || typeof body.password !== 'string' || body.password.length < 6) {
         return json({ error: 'Логин: 3-32 латинских символа/цифры, пароль минимум 6 символов' }, 400);
       }
+      if (!(await verifyTurnstile(body.turnstileToken, env.TURNSTILE_SECRET, ip))) {
+        return json({ error: 'Не прошла проверка "я не робот", обновите страницу и попробуйте снова' }, 400);
+      }
       const key = 'user:' + body.username.toLowerCase();
       const existing = await env.KOTOBA_KV.get(key);
       if (existing) return json({ error: 'Такой логин уже занят' }, 409);
       const salt = randomSaltB64();
       const hash = await hashPassword(body.password, salt);
-      await env.KOTOBA_KV.put(key, JSON.stringify({ salt, hash }));
+      await env.KOTOBA_KV.put(key, JSON.stringify({ salt, hash }), { expirationTtl: ACCOUNT_TTL_SEC });
       const token = await makeToken(body.username.toLowerCase(), env.SESSION_SECRET);
       return json({ token, username: body.username.toLowerCase() });
     }
@@ -121,6 +149,7 @@ export default {
       const hash = await hashPassword(body.password, existing.salt);
       if (hash !== existing.hash) return json({ error: 'Неверный логин или пароль' }, 401);
       const token = await makeToken(body.username.toLowerCase(), env.SESSION_SECRET);
+      await touchAccount(env, body.username.toLowerCase());
       return json({ token, username: body.username.toLowerCase() });
     }
 
@@ -132,13 +161,15 @@ export default {
 
       if (request.method === 'GET') {
         const raw = await env.KOTOBA_KV.get('words:' + username);
+        await touchAccount(env, username);
         return json({ words: raw ? JSON.parse(raw) : null });
       }
 
       const body = await request.json().catch(() => null);
       if (!body || !Array.isArray(body.words)) return json({ error: 'Некорректные данные' }, 400);
       if (JSON.stringify(body.words).length > 2_000_000) return json({ error: 'Слишком много данных' }, 413);
-      await env.KOTOBA_KV.put('words:' + username, JSON.stringify(body.words));
+      await env.KOTOBA_KV.put('words:' + username, JSON.stringify(body.words), { expirationTtl: ACCOUNT_TTL_SEC });
+      await touchAccount(env, username);
       return json({ ok: true });
     }
 

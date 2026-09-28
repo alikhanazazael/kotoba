@@ -305,6 +305,9 @@ textarea{width:100%;min-height:110px;font-size:15px;resize:vertical;position:rel
 const KEY = 'kotoba-words-v1';
 const MAX_LEVEL = 5;
 
+let authToken=null, authUser=null;
+try{ authToken=localStorage.getItem('kotoba-token'); authUser=localStorage.getItem('kotoba-user'); }catch(e){}
+
 const SEED = [
   ['яблоко','apple'],['облако','cloud'],['бегать','run / to run'],
   ['сильный','strong'],['дружба','friendship'],['мечта','dream']
@@ -361,9 +364,6 @@ function toast(msg){
 const pick = arr => arr[Math.floor(Math.random()*arr.length)];
 
 /* ---------- account sync ---------- */
-let authToken=null, authUser=null;
-try{ authToken=localStorage.getItem('kotoba-token'); authUser=localStorage.getItem('kotoba-user'); }catch(e){}
-
 function updateAuthUI(){
   const status=$('auth-status'), openBtn=$('auth-open-btn'), logoutBtn=$('logout-btn'), userSpan=$('auth-user');
   if(authToken && authUser){

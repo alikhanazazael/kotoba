@@ -93,6 +93,22 @@ async function checkRateLimit(env, bucket, ip) {
   return true;
 }
 
+// Для register считаем только реально созданные аккаунты, а не каждую попытку
+// (неудачные из-за капчи/валидации/занятого логина квоту не тратят)
+async function peekRateLimit(env, bucket, ip) {
+  const cfg = RATE_LIMITS[bucket];
+  const raw = await env.KOTOBA_KV.get(`ratelimit:${bucket}:${ip}`);
+  const count = raw ? parseInt(raw, 10) : 0;
+  return count < cfg.max;
+}
+async function bumpRateLimit(env, bucket, ip) {
+  const cfg = RATE_LIMITS[bucket];
+  const key = `ratelimit:${bucket}:${ip}`;
+  const raw = await env.KOTOBA_KV.get(key);
+  const count = raw ? parseInt(raw, 10) : 0;
+  await env.KOTOBA_KV.put(key, String(count + 1), { expirationTtl: cfg.windowSec });
+}
+
 async function verifyTurnstile(token, secret, ip) {
   if (!token || !secret) return false;
   const body = new URLSearchParams();
@@ -114,7 +130,7 @@ export default {
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
 
     if (url.pathname === '/api/register' && request.method === 'POST') {
-      if (!(await checkRateLimit(env, 'register', ip))) {
+      if (!(await peekRateLimit(env, 'register', ip))) {
         return json({ error: 'Слишком много регистраций с этого адреса, попробуйте завтра' }, 429);
       }
       const body = await request.json().catch(() => null);
@@ -130,6 +146,7 @@ export default {
       const salt = randomSaltB64();
       const hash = await hashPassword(body.password, salt);
       await env.KOTOBA_KV.put(key, JSON.stringify({ salt, hash }), { expirationTtl: ACCOUNT_TTL_SEC });
+      await bumpRateLimit(env, 'register', ip);
       const token = await makeToken(body.username.toLowerCase(), env.SESSION_SECRET);
       return json({ token, username: body.username.toLowerCase() });
     }

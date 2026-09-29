@@ -173,12 +173,12 @@ async function handle(request, env) {
     }
 
     if (url.pathname === '/api/login' && request.method === 'POST') {
-      if (!(await checkRateLimit(env, 'login', ip))) {
-        return json({ error: 'Слишком много попыток входа, попробуйте позже' }, 429);
-      }
       const body = await request.json().catch(() => null);
       if (!body || !validUsername(body.username) || typeof body.password !== 'string') {
         return json({ error: 'Неверный логин или пароль' }, 400);
+      }
+      if (!(await checkRateLimit(env, 'login', ip))) {
+        return json({ error: 'Слишком много попыток входа, попробуйте позже' }, 429);
       }
       const key = 'user:' + body.username.toLowerCase();
       const existingRaw = await env.KOTOBA_KV.get(key);

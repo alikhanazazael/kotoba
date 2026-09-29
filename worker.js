@@ -68,7 +68,8 @@ function validUsername(u) {
 
 const RATE_LIMITS = {
   register: { max: 5, windowSec: 86400 },  // 5 новых аккаунтов в сутки с одного IP
-  login: { max: 20, windowSec: 3600 }      // 20 попыток входа в час с одного IP
+  login: { max: 20, windowSec: 3600 },     // 20 попыток входа в час с одного IP
+  save: { max: 10, windowSec: 86400 }      // 10 сохранений словаря в сутки с одного IP
 };
 
 const ACCOUNT_TTL_SEC = 60 * 60 * 24 * 30; // аккаунт и словарь удаляются, если не открывали 30 дней
@@ -206,6 +207,9 @@ async function handle(request, env) {
       const body = await request.json().catch(() => null);
       if (!body || !Array.isArray(body.words)) return json({ error: 'Некорректные данные' }, 400);
       if (JSON.stringify(body.words).length > 2_000_000) return json({ error: 'Слишком много данных' }, 413);
+      if (!(await checkRateLimit(env, 'save', ip))) {
+        return json({ error: 'Слишком много сохранений с этого адреса сегодня, попробуйте завтра' }, 429);
+      }
       await env.KOTOBA_KV.put('words:' + username, JSON.stringify(body.words), { expirationTtl: ACCOUNT_TTL_SEC });
       await touchAccount(env, username);
       return json({ ok: true });

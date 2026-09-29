@@ -212,6 +212,7 @@ textarea{width:100%;min-height:110px;font-size:15px;resize:vertical;position:rel
 
   <div class="authbar">
     <span id="auth-status">Слова сохраняются только в этом браузере</span>
+    <button class="btn ghost small" id="save-btn" type="button" hidden>Сохранить на сервере</button>
     <button class="btn ghost small" id="auth-open-btn" type="button">Войти / Зарегистрироваться</button>
     <button class="btn ghost small" id="logout-btn" type="button" hidden>Выйти (<span id="auth-user"></span>)</button>
   </div>
@@ -325,7 +326,6 @@ function load(){
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
-  scheduleSync();
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function makeWord(ru,en){ return {id:uid(), ru:ru.trim(), en:en.trim(), level:0, correct:0, wrong:0, added:Date.now()}; }
@@ -367,31 +367,30 @@ const pick = arr => arr[Math.floor(Math.random()*arr.length)];
 
 /* ---------- account sync ---------- */
 function updateAuthUI(){
-  const status=$('auth-status'), openBtn=$('auth-open-btn'), logoutBtn=$('logout-btn'), userSpan=$('auth-user');
+  const status=$('auth-status'), openBtn=$('auth-open-btn'), logoutBtn=$('logout-btn'), saveBtn=$('save-btn'), userSpan=$('auth-user');
   if(authToken && authUser){
-    status.textContent='Вошли как '+authUser+' — слова синхронизируются';
-    openBtn.hidden=true; logoutBtn.hidden=false; userSpan.textContent=authUser;
+    status.textContent='Вошли как '+authUser;
+    openBtn.hidden=true; logoutBtn.hidden=false; saveBtn.hidden=false; userSpan.textContent=authUser;
   }else{
     status.textContent='Слова сохраняются только в этом браузере';
-    openBtn.hidden=false; logoutBtn.hidden=true;
+    openBtn.hidden=false; logoutBtn.hidden=true; saveBtn.hidden=true;
   }
 }
 
-let syncTimer=null;
-function scheduleSync(){
-  if(!authToken) return;
-  clearTimeout(syncTimer);
-  syncTimer=setTimeout(syncToServer,800);
-}
+// Синхронизация с сервером — только по явному клику (см. save-btn ниже),
+// а не на каждый ответ: бережём дневную квоту записи KV
 async function syncToServer(){
-  if(!authToken) return;
+  if(!authToken) return {ok:false, error:'Не авторизован'};
   try{
-    await fetch('/api/words',{
+    const r=await fetch('/api/words',{
       method:'PUT',
       headers:{'content-type':'application/json','authorization':'Bearer '+authToken},
       body:JSON.stringify({words:state.words})
     });
-  }catch(e){}
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) return {ok:false, error:d.error||'Ошибка сохранения'};
+    return {ok:true};
+  }catch(e){ return {ok:false, error:'Нет соединения с сервером'}; }
 }
 async function pullFromServer(){
   try{
@@ -404,11 +403,15 @@ async function pullFromServer(){
       renderList(); updateStats();
       if(!$('page-train').hidden){ if(!current||!state.words.find(w=>w.id===current.id)) ask(); }
       toast('Слова загружены с сервера');
-    }else{
-      scheduleSync();
     }
   }catch(e){ toast('Не удалось связаться с сервером'); }
 }
+$('save-btn').addEventListener('click', async ()=>{
+  $('save-btn').disabled=true;
+  const res=await syncToServer();
+  toast(res.ok ? 'Сохранено на сервере' : res.error);
+  $('save-btn').disabled=false;
+});
 
 async function authRequest(path, body){
   const r=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});

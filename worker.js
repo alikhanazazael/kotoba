@@ -66,6 +66,13 @@ function validUsername(u) {
   return typeof u === 'string' && /^[a-zA-Z0-9_-]{3,32}$/.test(u);
 }
 
+function rateLimitScope(ip) {
+  if (ip.includes(':')) {
+    return ip.split(':').slice(0, 4).join(':') + '::/64';
+  }
+  return ip;
+}
+
 const RATE_LIMITS = {
   register: { max: 5, windowSec: 86400 },  // 5 новых аккаунтов в сутки с одного IP
   login: { max: 20, windowSec: 3600 },     // 20 попыток входа в час с одного IP
@@ -150,9 +157,10 @@ export default {
 async function handle(request, env) {
     const url = new URL(request.url);
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+    const rlIp = rateLimitScope(ip);
 
     if (url.pathname === '/api/register' && request.method === 'POST') {
-      if (!(await peekRateLimit(env, 'register', ip))) {
+      if (!(await peekRateLimit(env, 'register', rlIp))) {
         return json({ error: 'Слишком много регистраций с этого адреса, попробуйте завтра' }, 429);
       }
       const body = await request.json().catch(() => null);
@@ -168,7 +176,7 @@ async function handle(request, env) {
       const salt = randomSaltB64();
       const hash = await hashPassword(body.password, salt);
       await env.KOTOBA_KV.put(key, JSON.stringify({ salt, hash }), { expirationTtl: ACCOUNT_TTL_SEC });
-      await bumpRateLimit(env, 'register', ip);
+      await bumpRateLimit(env, 'register', rlIp);
       const token = await makeToken(body.username.toLowerCase(), env.SESSION_SECRET);
       return json({ token, username: body.username.toLowerCase() });
     }
@@ -178,7 +186,7 @@ async function handle(request, env) {
       if (!body || !validUsername(body.username) || typeof body.password !== 'string') {
         return json({ error: 'Неверный логин или пароль' }, 400);
       }
-      if (!(await checkRateLimit(env, 'login', ip))) {
+      if (!(await checkRateLimit(env, 'login', rlIp))) {
         return json({ error: 'Слишком много попыток входа, попробуйте позже' }, 429);
       }
       const key = 'user:' + body.username.toLowerCase();
@@ -207,7 +215,7 @@ async function handle(request, env) {
       const body = await request.json().catch(() => null);
       if (!body || !Array.isArray(body.words)) return json({ error: 'Некорректные данные' }, 400);
       if (JSON.stringify(body.words).length > 2_000_000) return json({ error: 'Слишком много данных' }, 413);
-      if (!(await checkRateLimit(env, 'save', ip))) {
+      if (!(await checkRateLimit(env, 'save', rlIp))) {
         return json({ error: 'Слишком много сохранений с этого адреса сегодня, попробуйте завтра' }, 429);
       }
       await env.KOTOBA_KV.put('words:' + username, JSON.stringify(body.words), { expirationTtl: ACCOUNT_TTL_SEC });
